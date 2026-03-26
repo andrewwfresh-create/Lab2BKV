@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GIF Bot — API Client</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ───────────────────────────── DESIGN TOKENS ───────────────────────────── */
+    :root {
+      --bg:           #0d0f14;
+      --surface:      #161922;
+      --surface2:     #1e2230;
+      --border:       #2a2f40;
+      --accent:       #7c6af7;
+      --accent-glow:  #7c6af740;
+      --accent-dark:  #5b4fd4;
+      --green:        #22c55e;
+      --red:          #ef4444;
+      --amber:        #f59e0b;
+      --text:         #e4e8f0;
+      --text-muted:   #6b728e;
+      --text-dim:     #9aa0b8;
+      --radius:       14px;
+      --radius-sm:    8px;
+      --shadow:       0 8px 40px #0007;
+      --font:         'Inter', system-ui, sans-serif;
+    }
+
+    /* ───────────────────────────── RESET / BASE ───────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    /* ───────────────────────────── HEADER ───────────────────────────── */
+    header {
+      background: linear-gradient(135deg, #1a1535 0%, #0d1120 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 1.5rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(12px);
+    }
+
+    .logo {
+      width: 44px; height: 44px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem;
+      box-shadow: 0 0 20px var(--accent-glow);
+      flex-shrink: 0;
+    }
+
+    header h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      background: linear-gradient(90deg, #fff 40%, var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    header p.subtitle {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 0;
+    }
+
+    .header-info {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    /* ping indicator */
+    .status-dot {
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      animation: pulse-idle 2.5s ease-in-out infinite;
+    }
+    .status-dot.ok   { background: var(--green); animation: pulse-ok 2.5s ease-in-out infinite; }
+    .status-dot.err  { background: var(--red);   animation: none; }
+    .status-dot.busy { background: var(--amber);  animation: pulse-ok 0.8s ease-in-out infinite; }
+
+    @keyframes pulse-ok   { 0%,100%{box-shadow:0 0 0 0 #22c55e60} 50%{box-shadow:0 0 0 6px #22c55e00} }
+    @keyframes pulse-idle { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    .status-label { font-size: 0.78rem; color: var(--text-muted); }
+
+    /* ───────────────────────────── MAIN LAYOUT ───────────────────────────── */
+    main {
+      max-width: 1200px;
+      margin: 2rem auto;
+      padding: 0 1.5rem 3rem;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto auto;
+      grid-template-areas:
+        "start gif"
+        "text  log";
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 860px) {
+      main {
+        grid-template-columns: 1fr;
+        grid-template-areas: "start" "gif" "text" "log";
+      }
+    }
+
+    /* ───────────────────────────── CARD ───────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.75rem;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 1.2rem;
+      transition: border-color 0.25s;
+    }
+    .card:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .card-icon {
+      width: 38px; height: 38px;
+      border-radius: var(--radius-sm);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+
+    .card-icon.violet { background: #2d2060; }
+    .card-icon.blue   { background: #0f2855; }
+    .card-icon.teal   { background: #0e2e2e; }
+
+    .card-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .card-endpoint {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-family: 'Courier New', monospace;
+      background: var(--surface2);
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+    }
+
+    /* ───────────────────────────── FORM ELEMENTS ───────────────────────────── */
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-dim);
+      letter-spacing: 0.03em;
+    }
+
+    label .req { color: var(--red); margin-left: 2px; }
+
+    input[type="text"],
+    textarea {
+      width: 100%;
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 0.9rem;
+      padding: 0.65rem 0.9rem;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      resize: vertical;
+    }
+
+    input[type="text"]:focus,
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    input[type="text"].invalid,
+    textarea.invalid {
+      border-color: var(--red);
+      box-shadow: 0 0 0 3px #ef444430;
+      animation: shake 0.3s ease;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25%       { transform: translateX(-4px); }
+      75%       { transform: translateX(4px); }
+    }
+
+    .field-hint {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+    }
+
+    .field-error {
+      font-size: 0.75rem;
+      color: var(--red);
+      min-height: 1.1em;
+      transition: opacity 0.2s;
+    }
+
+    /* quick-select chips */
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+
+    .chip {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0.25rem 0.8rem;
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+      user-select: none;
+    }
+    .chip:hover {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    /* ───────────────────────────── BUTTONS ───────────────────────────── */
+    button[type="submit"] {
+      width: 100%;
+      padding: 0.75rem;
+      border: none;
+      border-radius: var(--radius-sm);
+      background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+      color: #fff;
+      font-family: var(--font);
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+      box-shadow: 0 4px 18px #7c6af738;
+    }
+    button[type="submit"]:hover { opacity: 0.88; transform: translateY(-1px); }
+    button[type="submit"]:active { transform: translateY(0); opacity: 0.95; }
+    button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    /* spinner inside button */
+    button[type="submit"] .spinner {
+      display: none;
+      width: 16px; height: 16px;
+      border: 2px solid #ffffff60;
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    button[type="submit"].loading .spinner { display: inline-block; }
+    button[type="submit"].loading .btn-label { opacity: 0.7; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ───────────────────────────── RESPONSE PANELS ───────────────────────────── */
+    .result-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 0.85rem 1rem;
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      min-height: 56px;
+      transition: border-color 0.25s;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .result-box.success { border-color: var(--green); }
+    .result-box.error   { border-color: var(--red);   }
+
+    .result-status {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-weight: 600;
+      font-size: 0.78rem;
+    }
+
+    .badge {
+      padding: 0.1rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.68rem;
+      font-weight: 700;
+    }
+    .badge.ok  { background: #166534; color: #86efac; }
+    .badge.err { background: #7f1d1d; color: #fca5a5; }
+    .badge.warn{ background: #78350f; color: #fde68a; }
+
+    .result-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+
+    /* ───────────────────────────── GIF DISPLAY ───────────────────────────── */
+    .gif-wrap {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.6rem;
+      border-top: 1px solid var(--border);
+      padding-top: 0.75rem;
+    }
+    .gif-wrap.visible { display: flex; }
+
+    .gif-wrap img {
+      max-width: 100%;
+      max-height: 260px;
+      object-fit: contain;
+      border-radius: var(--radius-sm);
+      box-shadow: 0 4px 24px #0005;
+      animation: fadeIn 0.4s ease;
+    }
+
+    .gif-link {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      word-break: break-all;
+    }
+    .gif-link:hover { color: var(--accent); }
+
+    @keyframes fadeIn { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: scale(1); } }
+
+    /* ───────────────────────────── REQUEST LOG ───────────────────────────── */
+    #log-card { grid-area: log; }
+
+    .log-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+      max-height: 360px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .log-list::-webkit-scrollbar { width: 5px; }
+    .log-list::-webkit-scrollbar-track { background: var(--surface2); border-radius: 4px; }
+    .log-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .log-entry {
+      background: var(--surface2);
+      border-left: 3px solid var(--border);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      padding: 0.55rem 0.75rem;
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 0.4rem 0.75rem;
+      align-items: center;
+      animation: slideIn 0.25s ease;
+    }
+    .log-entry.ok   { border-left-color: var(--green); }
+    .log-entry.err  { border-left-color: var(--red); }
+    .log-entry.warn { border-left-color: var(--amber); }
+
+    .log-method {
+      font-family: 'Courier New', monospace;
+      font-size: 0.7rem;
+      color: var(--accent);
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .log-path {
+      font-family: 'Courier New', monospace;
+      font-size: 0.72rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .log-time {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .log-msg {
+      grid-column: 1 / -1;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    @keyframes slideIn { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: translateX(0); } }
+
+    .log-empty {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-muted);
+      font-size: 0.82rem;
+    }
+
+    .clear-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-muted);
+      font-family: var(--font);
+      font-size: 0.78rem;
+      padding: 0.3rem 0.75rem;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .clear-btn:hover { border-color: var(--red); color: var(--red); }
+
+    /* ───────────────────────────── RATE COUNTER ───────────────────────────── */
+    .rate-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .rate-pips {
+      display: flex;
+      gap: 4px;
+    }
+
+    .pip {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--green);
+      transition: background 0.3s;
+    }
+    .pip.used { background: var(--border); }
+
+    /* ───────────────────────────── GRID AREA ASSIGNMENTS ───────────────────────────── */
+    #start-card { grid-area: start; }
+    #gif-card   { grid-area: gif;   }
+    #text-card  { grid-area: text;  }
+
+    /* ───────────────────────────── FOOTER ───────────────────────────── */
+    footer {
+      text-align: center;
+      padding: 1.5rem;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+    }
+    footer code {
+      font-family: 'Courier New', monospace;
+      background: var(--surface2);
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+
+<body>
+<!-- ═══════════════════════════ HEADER ═══════════════════════════ -->
+<header>
+  <div class="logo">🎬</div>
+  <div>
+    <h1>GIF Bot API Client</h1>
+    <p class="subtitle">Інтерфейс до сервера Lab 3 — GIPHY REST API</p>
+  </div>
+  <div class="header-info">
+    <div class="status-dot" id="status-dot"></div>
+    <span class="status-label" id="status-label">не підключено</span>
+  </div>
+</header>
+
+<!-- ═══════════════════════════ MAIN ═══════════════════════════ -->
+<main>
+
+  <!-- ─────────────── /api/v1/start ─────────────── -->
+  <section class="card" id="start-card">
+    <div class="card-header">
+      <div class="card-icon violet">🚀</div>
+      <div>
+        <div class="card-title">Start Session</div>
+        <span class="card-endpoint">POST /api/v1/start</span>
+      </div>
+    </div>
+
+    <form id="form-start" novalidate>
+      <div class="field">
+        <label for="start-uid">User ID <span class="req">*</span></label>
+        <input type="text" id="start-uid" name="user_id"
+               placeholder="наприклад: user_42"
+               autocomplete="off" />
+        <div class="field-error" id="err-start-uid"></div>
+        <div class="field-hint">Рядок без пробілів, 2–40 символів</div>
+      </div>
+
+      <div class="field" style="margin-top:.5rem">
+        <div class="chips" id="uid-chips">
+          <span class="chip" data-target="start-uid">user_1</span>
+          <span class="chip" data-target="start-uid">user_42</span>
+          <span class="chip" data-target="start-uid">andrew</span>
+          <span class="chip" data-target="start-uid">testbot</span>
+        </div>
+      </div>
+
+      <button type="submit" id="btn-start" style="margin-top:.75rem">
+        <span class="spinner"></span>
+        <span class="btn-label">Надіслати запит</span>
+      </button>
+    </form>
+
+    <div class="result-box" id="res-start">
+      <span style="color:var(--text-muted);font-size:.82rem">Відповідь з'явиться тут…</span>
+    </div>
+  </section>
+
+  <!-- ─────────────── /api/v1/gif ─────────────── -->
+  <section class="card" id="gif-card">
+    <div class="card-header">
+      <div class="card-icon blue">🖼️</div>
+      <div>
+        <div class="card-title">Get GIF</div>
+        <span class="card-endpoint">POST /api/v1/gif</span>
+      </div>
+    </div>
+
+    <form id="form-gif" novalidate>
+      <div class="field">
+        <label for="gif-uid">User ID <span class="req">*</span></label>
+        <input type="text" id="gif-uid" name="user_id"
+               placeholder="наприклад: user_42"
+               autocomplete="off" />
+        <div class="field-error" id="err-gif-uid"></div>
+      </div>
+
+      <div class="field">
+        <label for="gif-query">Пошуковий запит (необов'язково)</label>
+        <input type="text" id="gif-query" name="query"
+               placeholder="Залиш порожнім для випадкового GIF"
+               autocomplete="off" maxlength="100" />
+        <div class="field-error" id="err-gif-query"></div>
+      </div>
+
+      <div class="field">
+        <label>Швидкий вибір</label>
+        <div class="chips" id="gif-chips">
+          <span class="chip" data-target="gif-query">cats</span>
+          <span class="chip" data-target="gif-query">funny</span>
+          <span class="chip" data-target="gif-query">dogs</span>
+          <span class="chip" data-target="gif-query">nature</span>
+          <span class="chip" data-target="gif-query">space</span>
+          <span class="chip" data-target="gif-query">fire</span>
+        </div>
+      </div>
+
+      <div class="rate-bar">
+        <div class="rate-pips" id="gif-pips">
+          <div class="pip"></div><div class="pip"></div><div class="pip"></div>
+        </div>
+        <span id="gif-rate-label">3 запити / хв залишилося</span>
+      </div>
+
+      <button type="submit" id="btn-gif">
+        <span class="spinner"></span>
+        <span class="btn-label">Отримати GIF</span>
+      </button>
+    </form>
+
+    <div class="result-box" id="res-gif">
+      <span style="color:var(--text-muted);font-size:.82rem">GIF з'явиться тут…</span>
+    </div>
+    <div class="gif-wrap" id="gif-wrap">
+      <img id="gif-img" src="" alt="GIF" />
+      <a id="gif-link" class="gif-link" href="#" target="_blank" rel="noopener">Відкрити оригінал →</a>
+    </div>
+  </section>
+
+  <!-- ─────────────── /api/v1/text ─────────────── -->
+  <section class="card" id="text-card">
+    <div class="card-header">
+      <div class="card-icon teal">💬</div>
+      <div>
+        <div class="card-title">GIF з тексту</div>
+        <span class="card-endpoint">POST /api/v1/text</span>
+      </div>
+    </div>
+
+    <form id="form-text" novalidate>
+      <div class="field">
+        <label for="text-uid">User ID <span class="req">*</span></label>
+        <input type="text" id="text-uid" name="user_id"
+               placeholder="наприклад: user_42"
+               autocomplete="off" />
+        <div class="field-error" id="err-text-uid"></div>
+      </div>
+
+      <div class="field">
+        <label for="text-body">Текст повідомлення <span class="req">*</span></label>
+        <textarea id="text-body" name="text" rows="3"
+                  placeholder="Введіть текст, за яким шукатиметься GIF…"
+                  maxlength="300"></textarea>
+        <div class="field-error" id="err-text-body"></div>
+        <div class="field-hint">Від 1 до 300 символів. Обов'язкове поле.</div>
+      </div>
+
+      <div class="rate-bar">
+        <div class="rate-pips" id="text-pips">
+          <div class="pip"></div><div class="pip"></div><div class="pip"></div>
+        </div>
+        <span id="text-rate-label">3 запити / хв залишилося</span>
+      </div>
+
+      <button type="submit" id="btn-text">
+        <span class="spinner"></span>
+        <span class="btn-label">Надіслати</span>
+      </button>
+    </form>
+
+    <div class="result-box" id="res-text">
+      <span style="color:var(--text-muted);font-size:.82rem">Відповідь з'явиться тут…</span>
+    </div>
+    <div class="gif-wrap" id="text-gif-wrap">
+      <img id="text-gif-img" src="" alt="GIF" />
+      <a id="text-gif-link" class="gif-link" href="#" target="_blank" rel="noopener">Відкрити оригінал →</a>
+    </div>
+  </section>
+
+  <!-- ─────────────── REQUEST LOG ─────────────── -->
+  <section class="card" id="log-card">
+    <div class="card-header" style="justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:.65rem">
+        <div class="card-icon" style="background:#1a1535">📋</div>
+        <div class="card-title">Журнал запитів</div>
+      </div>
+      <button class="clear-btn" id="clear-log">Очистити</button>
+    </div>
+
+    <ul class="log-list" id="log-list">
+      <li class="log-empty" id="log-empty">Запитів ще не було</li>
+    </ul>
+  </section>
+
+</main>
+
+<!-- ═══════════════════════════ FOOTER ═══════════════════════════ -->
+<footer>
+  Сервер: <code id="base-url">http://localhost:8080</code> &nbsp;·&nbsp;
+  Rate limit: 3 запити / хвилину на користувача &nbsp;·&nbsp;
+  Lab 3 — GIF Bot API
+</footer>
+
+<!-- ═══════════════════════════ SCRIPT ═══════════════════════════ -->
+<script>
+'use strict';
+
+/* ─── конфігурація ─── */
+const BASE_URL = 'http://localhost:8080';
+document.getElementById('base-url').textContent = BASE_URL;
+
+/* ─── утиліти ─── */
+const $ = id => document.getElementById(id);
+
+function setLoadingBtn(btn, loading) {
+  btn.disabled = loading;
+  btn.classList.toggle('loading', loading);
+}
+
+function setStatusDot(state) { // 'idle' | 'ok' | 'err' | 'busy'
+  const dot   = $('status-dot');
+  const label = $('status-label');
+  dot.className = 'status-dot ' + (state === 'idle' ? '' : state);
+  const labels = { idle: 'не підключено', ok: 'сервер доступний', err: 'помилка', busy: 'запит…' };
+  label.textContent = labels[state] || state;
+}
+
+/* ─── валідація ─── */
+const UID_RE = /^[^\s]{2,40}$/;
+
+function validateUserId(value) {
+  if (!value.trim()) return 'User ID є обов\'язковим';
+  if (!UID_RE.test(value.trim())) return 'User ID: 2–40 символів, без пробілів';
+  return null;
+}
+
+function validateText(value) {
+  if (!value.trim()) return 'Текст є обов\'язковим';
+  if (value.trim().length > 300) return 'Не більше 300 символів';
+  return null;
+}
+
+function validateGifQuery(value) {
+  if (value.length > 100) return 'Запит не більше 100 символів';
+  return null;
+}
+
+function showError(errEl, input, msg) {
+  errEl.textContent = msg || '';
+  if (msg) {
+    input.classList.add('invalid');
+  } else {
+    input.classList.remove('invalid');
+  }
+}
+
+function clearError(errEl, input) {
+  showError(errEl, input, null);
+}
+
+/* ─── результат ─── */
+function renderResult(boxId, type, title, body) {
+  // type: 'success' | 'error' | 'warn'
+  const box = $(boxId);
+  box.className = 'result-box ' + (type === 'success' ? 'success' : type === 'warn' ? '' : 'error');
+
+  const badgeClass = type === 'success' ? 'ok' : type === 'warn' ? 'warn' : 'err';
+  box.innerHTML = `
+    <div class="result-status">
+      <span class="badge ${badgeClass}">${type.toUpperCase()}</span>
+      <span>${escHtml(title)}</span>
+    </div>
+    ${body ? `<div style="color:var(--text-muted);font-size:.82rem;white-space:pre-wrap">${escHtml(body)}</div>` : ''}
+  `;
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/* ─── лог запитів ─── */
+const logList  = $('log-list');
+const logEmpty = $('log-empty');
+
+function addLog(method, path, statusCode, msg) {
+  logEmpty.style.display = 'none';
+  const li = document.createElement('li');
+  const cls = statusCode >= 200 && statusCode < 300 ? 'ok'
+            : statusCode === 429 ? 'warn' : 'err';
+  const now = new Date().toLocaleTimeString('uk-UA');
+  li.className = `log-entry ${cls}`;
+  li.innerHTML = `
+    <span class="log-method">${escHtml(method)}</span>
+    <span class="log-path">${escHtml(path)}</span>
+    <span class="log-time">${now}</span>
+    <span class="log-msg">${statusCode} — ${escHtml(msg)}</span>
+  `;
+  logList.prepend(li);
+}
+
+$('clear-log').addEventListener('click', () => {
+  logList.innerHTML = '';
+  logEmpty.style.display = '';
+  logList.prepend(logEmpty);
+});
+
+/* ─── rate-limit UI ─── */
+// track per-userId requests within the last 60s
+const rateCounts = {};
+
+function getRateRemaining(userId) {
+  const now = Date.now();
+  if (!rateCounts[userId]) rateCounts[userId] = [];
+  // prune old entries
+  rateCounts[userId] = rateCounts[userId].filter(t => now - t < 60000);
+  return Math.max(0, 3 - rateCounts[userId].length);
+}
+
+function recordRequest(userId) {
+  if (!rateCounts[userId]) rateCounts[userId] = [];
+  rateCounts[userId].push(Date.now());
+}
+
+function updatePips(pipsId, labelId, userId) {
+  const rem = getRateRemaining(userId);
+  const pips = document.querySelectorAll(`#${pipsId} .pip`);
+  pips.forEach((p, i) => p.classList.toggle('used', i >= rem));
+  const label = $(labelId);
+  if (label) label.textContent = `${rem} запит${rem === 1 ? '' : 'и'} / хв залишилося`;
+}
+
+/* ─── сhip click ─── */
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    const targetId = chip.dataset.target;
+    const input = $(targetId);
+    if (input) {
+      input.value = chip.dataset.value || chip.textContent.trim();
+      input.focus();
+      clearError($(`err-${targetId.replace('-', '-')}`), input);
+    }
+  });
+});
+
+/* ─── live validation (on blur) ─── */
+function attachLiveValidation(inputId, errId, validator) {
+  const inp = $(inputId);
+  const err = $(errId);
+  if (!inp || !err) return;
+  inp.addEventListener('blur', () => {
+    const msg = validator(inp.value);
+    showError(err, inp, msg);
+  });
+  inp.addEventListener('input', () => {
+    if (inp.classList.contains('invalid')) {
+      const msg = validator(inp.value);
+      showError(err, inp, msg);
+    }
+  });
+}
+
+attachLiveValidation('start-uid',  'err-start-uid',  validateUserId);
+attachLiveValidation('gif-uid',    'err-gif-uid',    validateUserId);
+attachLiveValidation('gif-query',  'err-gif-query',  validateGifQuery);
+attachLiveValidation('text-uid',   'err-text-uid',   validateUserId);
+attachLiveValidation('text-body',  'err-text-body',  validateText);
+
+/* ─── fetch helper ─── */
+async function apiCall(method, path, body) {
+  setStatusDot('busy');
+  const res = await fetch(BASE_URL + path, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  return { status: res.status, data };
+}
+
+/* ─── /api/v1/start ─── */
+$('form-start').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const uidInp = $('start-uid');
+  const errUid = $('err-start-uid');
+  const uid    = uidInp.value.trim();
+
+  const uidErr = validateUserId(uid);
+  showError(errUid, uidInp, uidErr);
+  if (uidErr) return;
+
+  const btn = $('btn-start');
+  setLoadingBtn(btn, true);
+  try {
+    const { status, data } = await apiCall('POST', '/api/v1/start', { user_id: uid });
+    const isOk = status >= 200 && status < 300;
+    const msg  = data?.data?.message || data?.message || '';
+    const opts = data?.data?.options || [];
+
+    if (isOk) {
+      setStatusDot('ok');
+      let body = msg;
+      if (opts.length) body += '\n\nОпції: ' + opts.join(', ');
+      renderResult('res-start', 'success', `${status} OK`, body);
+      addLog('POST', '/api/v1/start', status, msg || 'OK');
+    } else {
+      setStatusDot('err');
+      renderResult('res-start', 'error', `${status} Error`, data?.message || 'Невідома помилка');
+      addLog('POST', '/api/v1/start', status, data?.message || 'Error');
+    }
+
+    // show options as chips
+    const startResult = $('res-start');
+    if (isOk && opts.length) {
+      const chipsDiv = document.createElement('div');
+      chipsDiv.className = 'result-options';
+      opts.forEach(o => {
+        const c = document.createElement('span');
+        c.className = 'chip';
+        c.textContent = o;
+        c.addEventListener('click', () => {
+          $('gif-query').value = o;
+          $('gif-uid').value   = uid;
+        });
+        chipsDiv.appendChild(c);
+      });
+      startResult.appendChild(chipsDiv);
+    }
+  } catch (err) {
+    setStatusDot('err');
+    renderResult('res-start', 'error', 'Мережева помилка', err.message);
+    addLog('POST', '/api/v1/start', 0, err.message);
+  } finally {
+    setLoadingBtn(btn, false);
+  }
+});
+
+/* ─── /api/v1/gif ─── */
+$('form-gif').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const uidInp   = $('gif-uid');
+  const queryInp = $('gif-query');
+  const errUid   = $('err-gif-uid');
+  const errQuery = $('err-gif-query');
+  const uid      = uidInp.value.trim();
+  const query    = queryInp.value.trim();
+
+  const uidErr   = validateUserId(uid);
+  const queryErr = validateGifQuery(query);
+  showError(errUid,   uidInp,   uidErr);
+  showError(errQuery, queryInp, queryErr);
+  if (uidErr || queryErr) return;
+
+  const btn = $('btn-gif');
+  setLoadingBtn(btn, true);
+  $('gif-wrap').classList.remove('visible');
+
+  recordRequest(uid);
+  updatePips('gif-pips', 'gif-rate-label', uid);
+
+  try {
+    const payload = { user_id: uid };
+    if (query) payload.query = query;
+
+    const { status, data } = await apiCall('POST', '/api/v1/gif', payload);
+    const isOk = status >= 200 && status < 300;
+    const url   = data?.data?.url || '';
+    const msg   = data?.message || '';
+
+    if (isOk && url) {
+      setStatusDot('ok');
+      renderResult('res-gif', 'success', `${status} OK`, '');
+      $('gif-img').src   = url;
+      $('gif-link').href = url;
+      $('gif-wrap').classList.add('visible');
+      addLog('POST', '/api/v1/gif', status, query ? `query="${query}"` : 'random');
+    } else if (status === 429) {
+      setStatusDot('err');
+      renderResult('res-gif', 'warn', `${status} Rate Limit`, msg);
+      addLog('POST', '/api/v1/gif', status, msg);
+    } else {
+      setStatusDot('err');
+      renderResult('res-gif', 'error', `${status} Error`, msg || 'Не вдалося отримати GIF');
+      addLog('POST', '/api/v1/gif', status, msg || 'Error');
+    }
+  } catch (err) {
+    setStatusDot('err');
+    renderResult('res-gif', 'error', 'Мережева помилка', err.message);
+    addLog('POST', '/api/v1/gif', 0, err.message);
+  } finally {
+    setLoadingBtn(btn, false);
+  }
+});
+
+/* ─── /api/v1/text ─── */
+$('form-text').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const uidInp  = $('text-uid');
+  const bodyInp = $('text-body');
+  const errUid  = $('err-text-uid');
+  const errBody = $('err-text-body');
+  const uid     = uidInp.value.trim();
+  const text    = bodyInp.value.trim();
+
+  const uidErr  = validateUserId(uid);
+  const bodyErr = validateText(text);
+  showError(errUid,  uidInp,  uidErr);
+  showError(errBody, bodyInp, bodyErr);
+  if (uidErr || bodyErr) return;
+
+  const btn = $('btn-text');
+  setLoadingBtn(btn, true);
+  $('text-gif-wrap').classList.remove('visible');
+
+  recordRequest(uid);
+  updatePips('text-pips', 'text-rate-label', uid);
+
+  try {
+    const { status, data } = await apiCall('POST', '/api/v1/text', { user_id: uid, text });
+    const isOk = status >= 200 && status < 300;
+    const url   = data?.data?.url || '';
+    const msg   = data?.message || '';
+
+    if (isOk && url) {
+      setStatusDot('ok');
+      renderResult('res-text', 'success', `${status} OK`, '');
+      $('text-gif-img').src   = url;
+      $('text-gif-link').href = url;
+      $('text-gif-wrap').classList.add('visible');
+      addLog('POST', '/api/v1/text', status, `text="${text.slice(0, 30)}…"`);
+    } else if (status === 429) {
+      setStatusDot('err');
+      renderResult('res-text', 'warn', `${status} Rate Limit`, msg);
+      addLog('POST', '/api/v1/text', status, msg);
+    } else {
+      setStatusDot('err');
+      renderResult('res-text', 'error', `${status} Error`, msg || 'Не вдалося отримати GIF');
+      addLog('POST', '/api/v1/text', status, msg || 'Error');
+    }
+  } catch (err) {
+    setStatusDot('err');
+    renderResult('res-text', 'error', 'Мережева помилка', err.message);
+    addLog('POST', '/api/v1/text', 0, err.message);
+  } finally {
+    setLoadingBtn(btn, false);
+  }
+});
+
+/* ─── синхронізація User ID між формами ─── */
+function syncUid(sourceId, ...targets) {
+  $(sourceId).addEventListener('input', () => {
+    const v = $(sourceId).value;
+    targets.forEach(t => {
+      const el = $(t);
+      if (el && !el.value) el.value = v;
+    });
+  });
+}
+syncUid('start-uid', 'gif-uid', 'text-uid');
+syncUid('gif-uid', 'text-uid');
+
+/* ─── rate pip sync on uid change ─── */
+['gif-uid', 'text-uid'].forEach(id => {
+  $(id).addEventListener('input', () => {
+    const uid = $(id).value.trim();
+    if (uid) {
+      updatePips('gif-pips',  'gif-rate-label',  uid);
+      updatePips('text-pips', 'text-rate-label', uid);
+    }
+  });
+});
+</script>
+</body>
+</html>
